@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SORA Backend</title>
+<meta name="description" content="Portofolio backend SORA: sistem notifikasi wearable untuk siswa tunarungu.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Sora:wght@500;600;700&display=swap">
+<style>
+/* Layout concept: satu halaman panjang bergaya konsol operator. Bilah navigasi menempel di atas,
+   demo pin di hero, lalu bagian-bagian yang bisa diklik. Tiga warna LED produk (hijau, biru, merah)
+   dipakai sebagai warna fungsional, aksen utama teal. */
+:root{
+  --bg:#F1F5F7; --surface:#FFFFFF; --surface2:#E8EEF1; --ink:#12202A; --ink2:#4A5B67; --line:#D1DBE1;
+  --accent:#0F6C7A; --accent-ink:#FFFFFF; --accent-soft:#D6EDF0;
+  --led-g:#137A44; --led-b:#2A5FCB; --led-r:#C23636;
+  --g-soft:#DCF2E5; --b-soft:#E0E9FB; --r-soft:#FBE2E2;
+  --warn:#9A5A00; --warn-soft:#FAE9CC;
+  --font-display:'Sora',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1317; --surface:#131D23; --surface2:#1A272F; --ink:#E7EFF3; --ink2:#9DB0BC; --line:#27363F;
+    --accent:#52C3D3; --accent-ink:#06242A; --accent-soft:#12343B;
+    --led-g:#46C783; --led-b:#7BA4FF; --led-r:#FF7777;
+    --g-soft:#12301F; --b-soft:#16264A; --r-soft:#3A1818;
+    --warn:#F0A64A; --warn-soft:#3A2A10; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1317; --surface:#131D23; --surface2:#1A272F; --ink:#E7EFF3; --ink2:#9DB0BC; --line:#27363F;
+  --accent:#52C3D3; --accent-ink:#06242A; --accent-soft:#12343B;
+  --led-g:#46C783; --led-b:#7BA4FF; --led-r:#FF7777;
+  --g-soft:#12301F; --b-soft:#16264A; --r-soft:#3A1818;
+  --warn:#F0A64A; --warn-soft:#3A2A10; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font:15px/1.65 var(--font-body);margin:0;-webkit-text-size-adjust:100%}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--surface);z-index:30}
+h1,h2,h3{font-family:var(--font-display);line-height:1.2;margin:0;text-wrap:balance;letter-spacing:-.01em}
+p{margin:0}
+code,.mono{font-family:var(--font-mono);font-size:.88em}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1080px;margin:0 auto}
+
+/* top bar */
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.topbar-in{display:flex;align-items:center;gap:20px;height:52px;max-width:1080px;margin:0 auto}
+.brand{font-family:var(--font-display);font-weight:700;letter-spacing:.04em;text-decoration:none;color:var(--ink);white-space:nowrap}
+.brand span{font-family:var(--font-mono);font-weight:400;font-size:12px;color:var(--ink2);margin-left:8px;letter-spacing:0}
+nav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;min-width:0}
+nav::-webkit-scrollbar{display:none}
+nav a{padding:6px 11px;border-radius:7px;color:var(--ink2);text-decoration:none;font-size:13.5px;font-weight:500;white-space:nowrap}
+nav a:hover{background:var(--surface2);color:var(--ink)}
+nav a.on{background:var(--accent-soft);color:var(--accent)}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:36px;align-items:center;padding-block:48px 12px}
+.kicker{font-family:var(--font-mono);font-size:12px;color:var(--ink2);letter-spacing:.06em;text-transform:uppercase}
+.hero h1{font-size:clamp(34px,6vw,54px);font-weight:700;margin-block:10px 14px}
+.lead{font-size:17px;color:var(--ink2);max-width:58ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:4px 11px;border-radius:999px;font-family:var(--font-mono);font-size:12px}
+.meta{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:22px 0 0;font-size:14px}
+.meta dt{color:var(--ink2)}
+.meta dd{margin:0}
+.pin-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.pin{width:118px;height:118px;border-radius:30px;background:var(--surface2);border:2px solid var(--line);position:relative;display:grid;place-items:center}
+.pin-led{width:30px;height:30px;border-radius:50%;background:var(--line);transition:background .12s,box-shadow .12s}
+.pin-led.on{background:var(--ledc);box-shadow:0 0 0 6px color-mix(in srgb,var(--ledc) 25%,transparent),0 0 26px 8px color-mix(in srgb,var(--ledc) 55%,transparent)}
+.pin-hole{position:absolute;top:10px;left:50%;width:14px;height:5px;margin-left:-7px;border-radius:3px;background:var(--line)}
+.pin.buzz{animation:buzz .3s linear}
+@keyframes buzz{0%,100%{transform:translate(0,0)}15%{transform:translate(-4px,1px) rotate(-2deg)}30%{transform:translate(4px,-1px) rotate(2deg)}45%{transform:translate(-4px,0) rotate(-2deg)}60%{transform:translate(4px,1px) rotate(2deg)}80%{transform:translate(-2px,0)}}
+.pin-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.cmd{border:2px solid var(--c);color:var(--c);background:transparent;border-radius:9px;padding:7px 14px;font-weight:600;font-size:14px}
+.cmd:hover,.cmd.on{background:var(--c);color:var(--surface)}
+.cmd.g{--c:var(--led-g)}.cmd.b{--c:var(--led-b)}.cmd.r{--c:var(--led-r)}
+.pin-read{font-size:13.5px;color:var(--ink2);text-align:center;min-height:42px;max-width:30ch}
+
+/* sections */
+section{padding-block:60px 4px;scroll-margin-top:60px}
+h2{font-size:clamp(24px,3.4vw,30px);font-weight:600}
+.sec-lead{color:var(--ink2);max-width:64ch;margin-top:10px}
+.stack{display:grid;gap:16px;margin-top:26px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;min-width:0}
+.card h3{font-size:17px;font-weight:600}
+.cap{color:var(--ink2);font-size:14px;margin-top:4px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+
+/* masalah */
+details.prob{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+details.prob summary{list-style:none;cursor:pointer;padding:16px 20px;display:flex;gap:14px;align-items:center;font-weight:600}
+details.prob summary::-webkit-details-marker{display:none}
+details.prob summary::after{content:"+";margin-left:auto;font-family:var(--font-mono);color:var(--ink2);font-size:20px;line-height:1}
+details.prob[open] summary::after{content:"\2212"}
+.pnum{width:30px;height:30px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-family:var(--font-mono);font-size:13px;flex:none}
+.prob-body{padding:0 20px 18px 64px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.prob-body h4{margin:0 0 4px;font-size:12px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--ink2);font-weight:500}
+.analogy{border-left:3px solid var(--accent);background:var(--accent-soft);padding:14px 18px;border-radius:0 10px 10px 0}
+
+/* flow stepper */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:transparent;padding:6px 13px;font-size:13.5px;font-weight:500;color:var(--ink2)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.flow-top{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.svgbox{overflow-x:auto;margin-top:8px}
+#flow{width:100%;min-width:560px;height:auto;display:block}
+#flow .node{fill:var(--surface);stroke:var(--line);stroke-width:2;transition:fill .2s,stroke .2s}
+#flow .node.on{stroke:var(--accent);fill:var(--accent-soft);stroke-width:2.5}
+#flow .nt{font:600 14px var(--font-display);fill:var(--ink);text-anchor:middle}
+#flow .ns{font:11px var(--font-mono);fill:var(--ink2);text-anchor:middle}
+#flow .edge{stroke:var(--line);stroke-width:2;fill:none}
+#flow .edge.on{stroke:var(--accent);stroke-width:3}
+#flow .el{font:10.5px var(--font-mono);fill:var(--ink2);text-anchor:middle}
+#flow .ah{fill:var(--line)} #flow .ahA{fill:var(--accent)}
+#flow .self{font:11px var(--font-mono);fill:var(--accent);text-anchor:middle;opacity:0;transition:opacity .2s}
+#flow .self.on{opacity:1}
+.stepbox{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;background:var(--surface2);border-radius:10px;padding:14px 16px;margin-top:10px;min-height:92px}
+.stepbox .sn{font-family:var(--font-mono);color:var(--accent);font-weight:500;font-size:13px;padding-top:2px}
+.stepbox strong{font-family:var(--font-display);font-weight:600}
+.ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 14px;font-size:13.5px;font-weight:500}
+.btn:hover{background:var(--surface2)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.dots{display:flex;gap:6px;margin-left:auto}
+.dots button{width:11px;height:11px;border-radius:50%;border:0;background:var(--line);padding:0}
+.dots button.on{background:var(--accent);transform:scale(1.25)}
+
+/* explorer */
+.tabs{display:flex;flex-wrap:wrap;gap:8px}
+.tab{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:6px 12px;font-size:13.5px;font-weight:500}
+.tab:hover{background:var(--surface2)}
+.tab[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tab.mono{font-family:var(--font-mono);font-size:12.5px}
+.panel{margin-top:14px;background:var(--surface2);border-radius:10px;padding:16px 18px}
+.colist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.col{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:2px 9px;font-family:var(--font-mono);font-size:12px}
+.mermaid-card pre.mermaid{margin:14px 0 0;overflow-x:auto;background:transparent}
+
+/* endpoint table */
+.tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+input[type="search"],select{font:inherit;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+input[type="search"]{min-width:200px;flex:1;max-width:320px}
+.tbl{overflow-x:auto;margin-top:14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:660px;font-size:13.5px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-family:var(--font-mono);font-size:11.5px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2);background:var(--surface2)}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.m{font-family:var(--font-mono);font-size:11px;font-weight:500;padding:2px 7px;border-radius:5px;display:inline-block;min-width:56px;text-align:center}
+.m.GET{background:var(--b-soft);color:var(--led-b)}
+.m.POST{background:var(--g-soft);color:var(--led-g)}
+.m.PUT{background:var(--warn-soft);color:var(--warn)}
+.m.DELETE{background:var(--r-soft);color:var(--led-r)}
+.lat{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.lat i{display:block;height:6px;border-radius:3px;background:var(--accent);opacity:.8}
+.lat b{font-weight:500;font-variant-numeric:tabular-nums;min-width:34px;text-align:right}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.ok{background:var(--g-soft);color:var(--led-g)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.info{background:var(--b-soft);color:var(--led-b)}
+
+/* proyek */
+.sumbar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--surface2);margin-top:12px}
+.sumbar i{display:block;height:100%}
+.sumbar .d{background:var(--accent)} .sumbar .w{background:var(--warn)}
+.sumrow{display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;margin-top:12px;font-size:14px}
+.sumrow b{font-family:var(--font-display);font-size:26px;font-weight:700;margin-right:6px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+.gantt{overflow-x:auto;margin-top:12px}
+.g-in{min-width:780px}
+.g-head,.g-row{display:grid;grid-template-columns:210px minmax(0,1fr);align-items:center}
+.g-months{position:relative;height:26px;border-bottom:1px solid var(--line)}
+.g-months span{position:absolute;top:0;bottom:0;border-left:1px solid var(--line);padding:4px 6px;font-family:var(--font-mono);font-size:11px;color:var(--ink2)}
+.g-label{border:0;background:transparent;text-align:left;padding:8px 10px 8px 0;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-label:hover{color:var(--accent)}
+.g-row{border-bottom:1px solid var(--line)}
+.g-track{position:relative;height:36px}
+.g-track span.l{position:absolute;top:0;bottom:0;border-left:1px solid var(--line);opacity:.6}
+.g-bar{position:absolute;top:9px;height:18px;border:0;border-radius:5px;min-width:10px;padding:0}
+.g-bar.st-done{background:var(--accent)}
+.g-bar.st-doing{background:var(--warn)}
+.g-bar.st-plan{background:transparent;border:2px dashed var(--ink2)}
+.g-bar.est{background-image:repeating-linear-gradient(135deg,transparent 0 5px,rgba(255,255,255,.4) 5px 9px)}
+.g-bar.sel{outline:2px solid var(--ink);outline-offset:2px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink2);margin-top:10px}
+.legend .sw{display:inline-block;width:22px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+.board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px;align-items:start}
+.col-h{display:flex;justify-content:space-between;align-items:center;font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2);padding:0 2px 8px}
+.col-b{display:grid;gap:8px;min-height:50px}
+.t-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;border-left:4px solid var(--ink2)}
+.t-card.st-done{border-left-color:var(--accent)} .t-card.st-doing{border-left-color:var(--warn)}
+.t-card.sel{box-shadow:0 0 0 2px var(--accent)}
+.t-head{display:grid;gap:3px;width:100%;text-align:left;border:0;background:transparent;padding:11px 13px}
+.tag{font-family:var(--font-mono);font-size:11px;color:var(--ink2);text-transform:uppercase;letter-spacing:.05em}
+.t-date{font-size:12.5px;color:var(--ink2)}
+.detail{padding:12px 14px;border-top:1px solid var(--line);background:var(--surface2);font-size:13.5px;display:grid;gap:8px}
+.detail .row{display:grid;grid-template-columns:90px 1fr;gap:8px}
+.detail .row span:first-child{color:var(--ink2)}
+.detail .seg{justify-self:start}
+.gdetail{margin-top:14px}
+.gdetail .detail{border:1px solid var(--line);border-radius:10px}
+.est-tag{font-size:11px;font-weight:600;color:var(--warn);background:var(--warn-soft);padding:1px 7px;border-radius:5px;margin-left:6px}
+
+/* hasil */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:26px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.kpi b{display:block;font-family:var(--font-display);font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi span{display:block;font-size:13px;color:var(--ink2);margin-top:6px}
+#chart{width:100%;margin-top:10px}
+#chart svg{display:block;width:100%}
+.ax{font:11px var(--font-mono);fill:var(--ink2)}
+.readout{font-size:13.5px;margin-top:8px;display:flex;flex-wrap:wrap;gap:6px 18px;min-height:24px;font-variant-numeric:tabular-nums}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+.list{margin:10px 0 0;padding-left:18px;display:grid;gap:6px}
+footer{padding-block:60px 56px;color:var(--ink2);font-size:13.5px}
+footer a{margin-right:16px}
+
+@media (max-width:760px){
+  .hero{grid-template-columns:minmax(0,1fr);gap:24px;padding-top:32px}
+  .grid2,.grid3,.board,.prob-body{grid-template-columns:minmax(0,1fr)}
+  .prob-body{padding-left:20px}
+  .brand span{display:none}
+  .g-head,.g-row{grid-template-columns:150px minmax(0,1fr)}
+  section{padding-top:44px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{transition:none!important;animation:none!important}
+}
+</style>
+
+<style>:root{color-scheme:light}[hidden]{display:none!important}</style>
+</head>
+<body>
+<header class="topbar gut">
+  <div class="topbar-in">
+    <a class="brand" href="#atas">SORA<span>backend</span></a>
+    <nav id="nav" aria-label="Bagian halaman">
+      <a href="#masalah">Masalah</a>
+      <a href="#arsitektur">Arsitektur</a>
+      <a href="#alur">Flowchart</a>
+      <a href="#data">Database</a>
+      <a href="#endpoint">Endpoint</a>
+      <a href="#proyek">Kontrol Proyek</a>
+      <a href="#hasil">Hasil Uji</a>
+      <a href="#refleksi">Refleksi</a>
+    </nav>
+  </div>
+</header>
+
+<main class="gut" id="atas">
+<div class="wrap">
+
+  <div class="hero">
+    <div>
+      <p class="kicker">Portofolio backend &middot; Capstone Design Telkom University</p>
+      <h1>SORA Backend</h1>
+      <p class="lead">Server yang meneruskan perintah guru ke pin wearable siswa tunarungu dalam hitungan milidetik, lalu mencatat setiap kejadian untuk laporan sekolah dan orang tua.</p>
+      <dl class="meta">
+        <dt>Peran</dt><dd>Backend Developer: server, database, deployment</dd>
+        <dt>Mitra</dt><dd>SLBN Cicendo, Bandung</dd>
+        <dt>Tim</dt><dd>Nadya Ainun Avrilya, Sudiana, Nabila Hatami Putri</dd>
+      </dl>
+      <div class="chips" aria-label="Teknologi">
+        <span class="chip">Node.js</span><span class="chip">Express.js</span><span class="chip">MySQL</span><span class="chip">WebSocket</span><span class="chip">JWT + bcrypt</span><span class="chip">Docker</span><span class="chip">Railway</span>
+      </div>
+    </div>
+    <div class="pin-card">
+      <div class="pin" id="pin" aria-hidden="true"><span class="pin-hole"></span><span class="pin-led" id="pinLed"></span></div>
+      <div class="pin-btns" role="group" aria-label="Kirim perintah ke pin contoh">
+        <button class="cmd g" data-cmd="presensi">Presensi</button>
+        <button class="cmd b" data-cmd="panggil">Panggil</button>
+        <button class="cmd r" data-cmd="tegur">Tegur</button>
+      </div>
+      <p class="pin-read" id="pinRead" aria-live="polite">Coba tekan satu tombol, seperti guru di kelas. Pola getar dan warna mengikuti firmware pin.</p>
+    </div>
+  </div>
+
+  <!-- MASALAH -->
+  <section id="masalah">
+    <h2>Masalah yang diselesaikan</h2>
+    <p class="sec-lead">Hasil observasi dan wawancara dengan guru kelas VI SLBN Cicendo menunjukkan tiga hambatan. Klik tiap masalah untuk melihat dampaknya dan jawaban dari sisi backend.</p>
+    <div class="stack">
+      <details class="prob" open>
+        <summary><span class="pnum">1</span>Susah menarik perhatian siswa tunarungu</summary>
+        <div class="prob-body">
+          <div><h4>Dampak</h4><p>Siswa tidak bisa dipanggil dengan suara. Guru harus mendatangi satu per satu, dan pembelajaran terhenti sementara.</p></div>
+          <div><h4>Jawaban backend</h4><p>Endpoint <code>/tegur</code> dan <code>/panggil</code> mendorong perintah lewat WebSocket ke pin siswa yang dituju. Pin bergetar dan menyala tanpa menunggu permintaan.</p></div>
+        </div>
+      </details>
+      <details class="prob">
+        <summary><span class="pnum">2</span>Presensi masih manual</summary>
+        <div class="prob-body">
+          <div><h4>Dampak</h4><p>Guru memanggil dan mencatat kehadiran satu per satu. Waktu belajar terpotong setiap pagi.</p></div>
+          <div><h4>Jawaban backend</h4><p>Endpoint <code>/presensi</code> mencatat kehadiran beberapa siswa sekaligus dengan tanggal dan jam WIB, lalu memberi konfirmasi getar satu kali ke pin.</p></div>
+        </div>
+      </details>
+      <details class="prob">
+        <summary><span class="pnum">3</span>Tidak ada catatan aktivitas</summary>
+        <div class="prob-body">
+          <div><h4>Dampak</h4><p>Sekolah dan orang tua tidak punya data berapa kali seorang anak ditegur, dipanggil, atau hadir.</p></div>
+          <div><h4>Jawaban backend</h4><p>Setiap kejadian masuk ke tabel <code>aktivitas</code>. Dari sana backend membuat laporan harian, laporan rentang tanggal, grafik, dan ekspor PDF, dengan akses sesuai peran.</p></div>
+        </div>
+      </details>
+      <div class="analogy"><strong>Analogi.</strong> Backend itu operator telepon sekolah. Guru bilang "sambungkan ke siswa nomor 4", operator mencari sambungannya, menghubungkan, lalu mencatatnya di buku log. Bedanya, semua ini selesai kurang dari satu detik.</div>
+    </div>
+  </section>
+
+  <!-- ARSITEKTUR -->
+  <section id="arsitektur">
+    <h2>Arsitektur dan perjalanan satu perintah</h2>
+    <p class="sec-lead">Aplikasi hanya bicara dengan backend. Backend memeriksa hak akses, mencatat ke database, lalu meneruskan perintah ke pin. Putar langkah demi langkah di bawah ini.</p>
+    <div class="stack">
+      <div class="card">
+        <div class="flow-top">
+          <h3>Dari tombol guru sampai pin bergetar</h3>
+          <div class="seg" role="group" aria-label="Jenis perintah" id="flowCmd">
+            <button data-cmd="presensi" aria-pressed="false">Presensi</button>
+            <button data-cmd="panggil" aria-pressed="false">Panggil</button>
+            <button data-cmd="tegur" aria-pressed="true">Tegur</button>
+          </div>
+        </div>
+        <div class="svgbox">
+          <svg id="flow" viewBox="0 0 760 290" role="img" aria-label="Diagram alur perintah dari aplikasi guru ke backend, database, dan pin siswa">
+            <defs>
+              <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+              <marker id="ahA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ahA" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <path class="edge" id="e-req" d="M160,58 L300,58"/>
+            <path class="edge" id="e-res" d="M303,86 L162,86"/>
+            <path class="edge" id="e-push" d="M460,58 L596,58"/>
+            <path class="edge" id="e-reg" d="M598,86 L462,86"/>
+            <path class="edge" id="e-db" d="M380,106 L380,196"/>
+            <text class="el" x="230" y="48">POST + JWT</text>
+            <text class="el" x="232" y="106">berhasil</text>
+            <text class="el" x="528" y="48">perintah</text>
+            <text class="el" x="530" y="106">daftar</text>
+            <text class="el" x="418" y="156">INSERT</text>
+            <text class="self" id="selfNote" x="380" y="26">cek token dan peran</text>
+            <rect class="node" id="n-app" x="10" y="40" width="150" height="64" rx="12"/>
+            <text class="nt" x="85" y="68">Aplikasi Guru</text><text class="ns" x="85" y="88">Flutter</text>
+            <rect class="node" id="n-be" x="305" y="40" width="150" height="64" rx="12"/>
+            <text class="nt" x="380" y="68">Backend</text><text class="ns" x="380" y="88">Express + ws</text>
+            <rect class="node" id="n-wear" x="600" y="40" width="150" height="64" rx="12"/>
+            <text class="nt" x="675" y="68">Pin Siswa</text><text class="ns" x="675" y="88">ESP32-C3</text>
+            <rect class="node" id="n-db" x="305" y="200" width="150" height="64" rx="12"/>
+            <text class="nt" x="380" y="228">MySQL</text><text class="ns" x="380" y="248">Railway</text>
+          </svg>
+        </div>
+        <div class="stepbox" aria-live="polite"><span class="sn" id="stepNo">1 / 7</span><div><strong id="stepTitle"></strong><p id="stepText" style="margin-top:4px"></p></div></div>
+        <div class="ctrl">
+          <button class="btn" id="prev">Sebelumnya</button>
+          <button class="btn pri" id="play">Putar otomatis</button>
+          <button class="btn" id="next">Berikutnya</button>
+          <div class="dots" id="dots" role="group" aria-label="Langkah"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Teknologi dan alasan memilihnya</h3>
+        <p class="cap">Klik salah satu untuk melihat perannya di SORA.</p>
+        <div class="tabs" id="stackTabs" style="margin-top:12px"></div>
+        <div class="panel" id="stackPanel"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FLOWCHART -->
+  <section id="alur">
+    <h2>Flowchart</h2>
+    <p class="sec-lead">Tiga alur logika di dalam backend, ditambah jalur dari kode sampai server produksi. Alur kerja utama ada di stepper pada bagian Arsitektur.</p>
+    <div class="stack">
+      <div class="card mermaid-card">
+        <h3>Login tiga peran</h3>
+        <p class="cap">Setiap peran dicari dengan identitas berbeda, lalu password diperiksa dengan bcrypt. Login yang berhasil dicatat di <code>login_history</code>.</p>
+<pre class="mermaid">
+flowchart TD
+    A([Pengguna isi login]) --> B{Pilih peran}
+    B -- Admin --> C[Cari berdasarkan email]
+    B -- Guru --> D[Cari berdasarkan NIP + kode kelas]
+    B -- Orang Tua --> E[Cari berdasarkan NIS anak]
+    C --> F{Pengguna ditemukan?}
+    D --> F
+    E --> F
+    F -- Tidak --> G[400: User tidak ditemukan]
+    F -- Ya --> H{Password cocok? bcrypt}
+    H -- Tidak --> I[400: Password salah]
+    H -- Ya --> J[Catat ke login_history]
+    J --> K[Terbitkan token JWT, berlaku 1 jam]
+    K --> L([Masuk ke halaman sesuai peran])
+</pre>
+      </div>
+      <div class="card mermaid-card">
+        <h3>Penjaga pintu (middleware)</h3>
+        <p class="cap">Setiap permintaan ke endpoint terlindungi melewati tiga pemeriksaan sebelum menyentuh controller.</p>
+<pre class="mermaid">
+flowchart LR
+    R[Request masuk] --> M{Ada token?}
+    M -- Tidak --> X1[401: Token tidak ada]
+    M -- Ya --> V{Token valid?}
+    V -- Tidak --> X2[401: Token tidak valid]
+    V -- Ya --> P{Peran sesuai?}
+    P -- Tidak --> X3[Akses ditolak]
+    P -- Ya --> OK[Lanjut ke controller]
+</pre>
+      </div>
+      <div class="card mermaid-card">
+        <h3>Mendaftarkan pin baru lewat QR Code</h3>
+        <p class="cap">QR di pin berisi alamat IP. Backend memeriksa apakah IP itu sudah dikenal, lalu memasangkannya dengan identitas siswa.</p>
+<pre class="mermaid">
+flowchart TD
+    A[Guru scan QR di pin, berisi alamat IP] --> B[POST /api/admin/device/register]
+    B --> C{IP sudah ada di tabel devices?}
+    C -- Sudah --> D[Tampilkan info siswa pemilik pin]
+    C -- Belum --> E[Simpan perangkat baru]
+    E --> F[Guru isi nama, NIS, kelas]
+    F --> G[POST /api/admin/device/tambah-siswa]
+    G --> H[Simpan siswa dan tandai perangkat terdaftar]
+</pre>
+      </div>
+      <div class="card mermaid-card">
+        <h3>Dari kode ke server produksi</h3>
+        <p class="cap">Dikembangkan dengan MySQL lokal (XAMPP), lalu database dimigrasi ke Railway. Setiap push ke branch utama membangun ulang container otomatis.</p>
+<pre class="mermaid">
+flowchart LR
+    A[Laptop + MySQL lokal XAMPP] -- git push --> B[GitHub]
+    B -- build otomatis --> C[Railway: Docker node 18 alpine]
+    D[(MySQL Railway hasil migrasi)] --- C
+    C --> E[URL publik REST dan WSS]
+</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATABASE -->
+  <section id="data">
+    <h2>Desain database</h2>
+    <p class="sec-lead">Tujuh tabel. Semua kejadian di kelas masuk ke satu tabel <code>aktivitas</code>, jadi laporan dan grafik berasal dari satu sumber data.</p>
+    <div class="stack">
+      <div class="card mermaid-card">
+        <h3>Relasi antar tabel</h3>
+<pre class="mermaid">
+erDiagram
+    GURU ||--o{ AKTIVITAS : mencatat
+    SISWA ||--o{ AKTIVITAS : menerima
+    DEVICES ||--o| SISWA : "dipakai oleh"
+    SISWA ||--o{ ORANG_TUA : "NIS dipantau"
+    GURU {
+        string nama
+        string nip
+        string kode_kelas
+        string password
+    }
+    SISWA {
+        string nama
+        string nis
+        string kelas
+        int device_id
+    }
+    AKTIVITAS {
+        int siswa_id
+        int guru_id
+        string mapel
+        date tanggal
+        time waktu
+        string tipe
+    }
+    DEVICES {
+        string ip_address
+        bool is_registered
+    }
+    ORANG_TUA {
+        string nis
+        string password
+    }
+</pre>
+      </div>
+      <div class="card">
+        <h3>Jelajahi tabel</h3>
+        <p class="cap">Kolom utama berdasarkan kode backend.</p>
+        <div class="tabs mono-tabs" id="dbTabs" style="margin-top:12px"></div>
+        <div class="panel" id="dbPanel"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ENDPOINT -->
+  <section id="endpoint">
+    <h2>28 endpoint API</h2>
+    <p class="sec-lead">Hasil uji satu pengguna dengan Apache JMeter, 30 kali per endpoint. Cari, saring menurut peran, atau urutkan menurut kecepatan.</p>
+    <div class="stack">
+      <div>
+        <div class="tools">
+          <input type="search" id="epSearch" placeholder="Cari path atau fungsi" aria-label="Cari endpoint">
+          <div class="seg" id="epRole" role="group" aria-label="Saring menurut peran"></div>
+          <select id="epSort" aria-label="Urutkan">
+            <option value="no">Urutan bawaan</option>
+            <option value="fast">Tercepat dulu</option>
+            <option value="slow">Terlambat dulu</option>
+          </select>
+        </div>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>Metode</th><th>Path</th><th>Fungsi</th><th class="num">Rata-rata (ms)</th><th>Kategori</th></tr></thead>
+            <tbody id="epBody"></tbody>
+          </table>
+        </div>
+        <p class="cap" id="epCount" style="margin-top:8px"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROYEK -->
+  <section id="proyek">
+    <h2>Kontrol proyek</h2>
+    <p class="sec-lead">Jadwal pengerjaan backend dan papan tugasnya. Klik tugas untuk melihat detail, lalu ubah statusnya. Perubahan hanya tersimpan di browser ini.</p>
+    <div class="stack">
+      <div class="card">
+        <div class="sumrow" id="sumRow"></div>
+        <div class="sumbar" id="sumBar" aria-hidden="true"></div>
+        <div class="tabs" id="phaseTabs" style="margin-top:16px" role="group" aria-label="Saring menurut fase"></div>
+      </div>
+
+      <div class="card">
+        <h3>Jadwal</h3>
+        <p class="cap">Wawancara (20 Nov 2025) dan masa pengujian (Juli 2026) bertanggal pasti dari buku capstone. Bar berarsir adalah perkiraan fase pengerjaan.</p>
+        <div class="gantt"><div class="g-in" id="gantt"></div></div>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--accent)"></i>Selesai</span>
+          <span><i class="sw" style="background:var(--warn)"></i>Berjalan</span>
+          <span><i class="sw" style="border:2px dashed var(--ink2)"></i>Rencana</span>
+          <span><i class="sw" style="background:var(--ink2);background-image:repeating-linear-gradient(135deg,transparent 0 3px,rgba(255,255,255,.5) 3px 6px)"></i>Tanggal perkiraan</span>
+        </div>
+        <div class="gdetail" id="gdetail"></div>
+      </div>
+
+      <div>
+        <div class="tools" style="justify-content:space-between">
+          <h3 style="font-size:17px">Papan tugas</h3>
+          <button class="btn" id="resetBoard" hidden>Kembalikan status awal</button>
+        </div>
+        <div class="board" id="board"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HASIL -->
+  <section id="hasil">
+    <h2>Hasil pengujian</h2>
+    <p class="sec-lead">Diuji di laboratorium dengan Black Box, Apache JMeter, Railway Metrics, dan Wireshark. Pengujian penerimaan pengguna dilakukan di SLBN Cicendo.</p>
+    <div class="kpis">
+      <div class="kpi"><b>68/68</b><span>skenario Black Box berhasil</span></div>
+      <div class="kpi"><b>95&ndash;310</b><span>ms per endpoint, satu pengguna</span></div>
+      <div class="kpi"><b>308.778</b><span>request dalam 5 jam, 0% gagal</span></div>
+      <div class="kpi"><b>48 ms</b><span>delay WebSocket, kategori Baik</span></div>
+      <div class="kpi"><b>~0,54 dtk</b><span>dari tombol guru sampai pin aktif</span></div>
+    </div>
+    <div class="stack">
+      <div class="card">
+        <div class="flow-top">
+          <h3>Perilaku server di bawah beban</h3>
+          <div class="seg" id="chartTabs" role="group" aria-label="Pilih metrik"></div>
+        </div>
+        <p class="cap" id="chartCap"></p>
+        <div id="chart"></div>
+        <div class="readout" id="chartRead" aria-live="polite"></div>
+        <div class="legend" id="chartLegend"></div>
+      </div>
+      <div class="card">
+        <h3>Ringkasan hasil</h3>
+        <div class="tbl" style="margin-top:12px">
+          <table>
+            <thead><tr><th>Aspek</th><th>Hasil</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Fungsional (Black Box)</td><td>68 skenario: autentikasi, guru, orang tua, administrator</td><td><span class="pill ok">Tercapai</span></td></tr>
+              <tr><td>Kecepatan per endpoint</td><td>95&ndash;310 ms, tidak ada yang di atas 1.000 ms</td><td><span class="pill ok">Tercapai</span></td></tr>
+              <tr><td>Beban 20&ndash;100 pengguna virtual</td><td>0% error. Titik 10 pengguna mencatat 7,35% karena data uji dummy yang sudah terhapus, bukan beban server</td><td><span class="pill ok">Tercapai</span></td></tr>
+              <tr><td>Ketahanan 5 jam</td><td>308.778 request, 0% error</td><td><span class="pill ok">Tercapai</span></td></tr>
+              <tr><td>Titik jenuh server</td><td>Sekitar 60&ndash;80 pengguna bersamaan. Satu kelas hanya memakai belasan</td><td><span class="pill info">Cukup untuk kelas</span></td></tr>
+              <tr><td>Delay dan jitter WebSocket</td><td>48 ms dan 12 ms (TIPHON: Baik)</td><td><span class="pill ok">Tercapai</span></td></tr>
+              <tr><td>Tombol guru sampai pin aktif</td><td>Rata-rata 536 ms (backend 410 ms), target di bawah 1 detik</td><td><span class="pill ok">Tercapai</span></td></tr>
+              <tr><td>Packet loss</td><td>16% pada satu sesi saat koneksi backend ke database tidak stabil</td><td><span class="pill warn">Perlu perbaikan</span></td></tr>
+              <tr><td>Lonjakan response time</td><td>Maksimum 284 detik pada satu request di beban tertinggi uji 5 jam, tanpa kegagalan</td><td><span class="pill warn">Perlu perbaikan</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REFLEKSI -->
+  <section id="refleksi">
+    <h2>Refleksi</h2>
+    <div class="grid3" style="margin-top:26px">
+      <div class="card">
+        <h3>Yang belum sempurna</h3>
+        <ul class="list">
+          <li>Packet loss 16% saat koneksi ke database tidak stabil. Butuh penguatan koneksi dan retry.</li>
+          <li>Lonjakan response time pada beban sangat tinggi. Query laporan perlu dioptimasi.</li>
+          <li>Kualitas komunikasi turun jika pin lebih dari 6 m dari Wi-Fi. Ini faktor jaringan, bukan pemrosesan server.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Yang saya pelajari</h3>
+        <ul class="list">
+          <li>Merancang REST API dan WebSocket dalam satu server.</li>
+          <li>Keamanan dasar: hash password, JWT, middleware, menyembunyikan rahasia.</li>
+          <li>Zona waktu server cloud (UTC) dan cara menjaga tanggal tetap WIB.</li>
+          <li>Membaca hasil JMeter: titik jenuh, throughput, error rate.</li>
+          <li>Alur Docker, GitHub, dan Railway.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Rencana berikutnya</h3>
+        <ul class="list">
+          <li>Reconnect dan antrean perintah untuk pin yang sedang offline.</li>
+          <li>Caching pada endpoint laporan.</li>
+          <li>Rate limiting dan validasi input yang lebih ketat.</li>
+        </ul>
+        <p class="cap" style="margin-top:12px"><a href="#proyek">Lihat di papan tugas</a></p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <a href="https://github.com/nabilahatput/sora-backend" target="_blank" rel="noopener">Repo backend</a>
+    <a href="https://github.com/nabilahatput/sora-frontend" target="_blank" rel="noopener">Repo frontend</a>
+    <p style="margin-top:14px">SORA (Smart Output Responsive Aid). Capstone Design S1 Teknik Telekomunikasi, Universitas Telkom, 2026.</p>
+  </footer>
+
+</div>
+</main>
+
+<script>
+(function(){
+  var $=function(s,r){return (r||document).querySelector(s)};
+  var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function fmt(n,d){return Number(n).toLocaleString('id-ID',{maximumFractionDigits:d==null?1:d})}
+
+  /* ---------- scrollspy ---------- */
+  var links=$$('#nav a');
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id)})}
+      });
+    },{rootMargin:'-30% 0px -60% 0px'});
+    $$('section').forEach(function(s){io.observe(s)});
+  }
+
+  /* ---------- pin demo (meniru firmware: 300 ms getar, 200 ms jeda, 500 ms tahan) ---------- */
+  var CMD={
+    presensi:{n:1,c:'var(--led-g)',t:'Presensi: 1x getar, LED hijau'},
+    panggil:{n:2,c:'var(--led-b)',t:'Panggil: 2x getar, LED biru'},
+    tegur:{n:3,c:'var(--led-r)',t:'Tegur: 3x getar, LED merah'}
+  };
+  var pin=$('#pin'),led=$('#pinLed'),pinRead=$('#pinRead'),timers=[];
+  function clearT(){timers.forEach(clearTimeout);timers=[];pin.classList.remove('buzz');led.classList.remove('on');$$('.pin-btns .cmd').forEach(function(b){b.classList.remove('on')})}
+  function fire(key,btn){
+    clearT();
+    var c=CMD[key];
+    led.style.setProperty('--ledc',c.c);
+    led.classList.add('on');
+    if(btn)btn.classList.add('on');
+    pinRead.textContent=c.t;
+    var t=0;
+    for(var i=0;i<c.n;i++){
+      (function(){
+        timers.push(setTimeout(function(){pin.classList.remove('buzz');void pin.offsetWidth;pin.classList.add('buzz')},t));
+        timers.push(setTimeout(function(){pin.classList.remove('buzz')},t+300));
+      })();
+      t+=500;
+    }
+    timers.push(setTimeout(clearT,t+300));
+  }
+  $$('.pin-btns .cmd').forEach(function(b){b.addEventListener('click',function(){fire(b.dataset.cmd,b)})});
+
+  /* ---------- stepper arsitektur ---------- */
+  var fcmd='tegur',step=0,playing=false,ptimer=null;
+  var NODE_FILL={g:'var(--g-soft)',b:'var(--b-soft)',r:'var(--r-soft)'};
+  var CC={presensi:'g',panggil:'b',tegur:'r'};
+  var COLORNAME={presensi:'hijau',panggil:'biru',tegur:'merah'};
+  function steps(){
+    var c=fcmd,n=CMD[c].n;
+    return [
+      {e:'reg',nodes:['wear','be'],t:'Pin mendaftar',d:'Begitu menyala dan tersambung Wi-Fi, pin membuka koneksi WebSocket dan mengirim ID siswanya. Backend menyimpan koneksi itu di daftar pin yang aktif.'},
+      {e:'req',nodes:['app','be'],t:'Guru menekan tombol',d:'Aplikasi mengirim POST /api/guru/'+c+' bersama token JWT dan ID siswa yang dipilih.'},
+      {self:true,nodes:['be'],t:'Backend memeriksa',d:'Middleware memeriksa token dan peran. Tanpa token yang sah, permintaan langsung ditolak dengan HTTP 401.'},
+      {e:'db',nodes:['be','db'],t:'Kejadian dicatat',d:'Satu baris baru masuk ke tabel aktivitas dengan tanggal dan jam WIB. Dari tabel inilah laporan dan grafik dibuat.'},
+      {e:'push',nodes:['be','wear'],t:'Perintah didorong',d:'Backend mencari koneksi siswa di daftar pin, lalu mengirim {"tipe":"'+c+'"} lewat WebSocket. Tidak ada polling.'},
+      {nodes:['wear'],fill:true,t:'Pin bereaksi',d:'LED menyala '+COLORNAME[c]+' dan motor bergetar '+n+' kali ('+n+' x 300 ms, jeda 200 ms), lalu padam setelah setengah detik.'},
+      {e:'res',nodes:['be','app'],t:'Guru mendapat kabar',d:'Backend membalas "berhasil" dan layar guru memperbarui hitungan teguran atau panggilan siswa.'}
+    ];
+  }
+  var EDGES={reg:'e-reg',req:'e-req',db:'e-db',push:'e-push',res:'e-res'};
+  var dotsEl=$('#dots');
+  for(var i=0;i<7;i++){(function(i){var b=document.createElement('button');b.setAttribute('aria-label','Langkah '+(i+1));b.addEventListener('click',function(){stop();step=i;renderFlow()});dotsEl.appendChild(b)})(i)}
+  function renderFlow(){
+    var S=steps(),s=S[step];
+    Object.keys(EDGES).forEach(function(k){var el=$('#'+EDGES[k]);var on=s.e===k;el.classList.toggle('on',on);el.setAttribute('marker-end',on?'url(#ahA)':'url(#ah)')});
+    ['app','be','wear','db'].forEach(function(k){
+      var el=$('#n-'+k);var on=s.nodes.indexOf(k)>-1;el.classList.toggle('on',on);
+      el.style.fill=(s.fill&&k==='wear')?NODE_FILL[CC[fcmd]]:'';
+      if(s.fill&&k==='wear')el.style.stroke='var(--led-'+CC[fcmd]+')';else el.style.stroke='';
+    });
+    $('#selfNote').classList.toggle('on',!!s.self);
+    $('#stepNo').textContent=(step+1)+' / 7';
+    $('#stepTitle').textContent=s.t;
+    $('#stepText').textContent=s.d;
+    $$('#dots button').forEach(function(b,i){b.classList.toggle('on',i===step)});
+    $('#prev').disabled=step===0;$('#next').disabled=step===6;
+  }
+  function stop(){playing=false;clearInterval(ptimer);$('#play').textContent='Putar otomatis'}
+  function start(){
+    if(step>=6)step=0;
+    playing=true;$('#play').textContent='Jeda';renderFlow();
+    ptimer=setInterval(function(){if(step>=6){stop();return}step++;renderFlow()},2300);
+  }
+  $('#play').addEventListener('click',function(){playing?stop():start()});
+  $('#prev').addEventListener('click',function(){stop();if(step>0)step--;renderFlow()});
+  $('#next').addEventListener('click',function(){stop();if(step<6)step++;renderFlow()});
+  $$('#flowCmd button').forEach(function(b){b.addEventListener('click',function(){
+    fcmd=b.dataset.cmd;$$('#flowCmd button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});renderFlow();
+  })});
+  renderFlow();
+
+  /* ---------- stack explorer ---------- */
+  var STACK=[
+    ['Node.js','Satu event loop menangani banyak koneksi tanpa membuat thread baru untuk tiap koneksi. Cocok untuk server notifikasi yang melayani banyak pin sekaligus.'],
+    ['Express.js','Kerangka tipis untuk routing REST API dan middleware. Dipakai untuk memisahkan rute per peran: auth, guru, orang tua, admin.'],
+    ['MySQL','Data relasional (siswa, guru, aktivitas) dengan transaksi ACID lewat InnoDB. Diakses lewat library mysql2 dengan connection pool maksimal 10 koneksi.'],
+    ['WebSocket','Saluran dua arah yang tetap terbuka. Server bisa mendorong perintah ke pin kapan saja tanpa menunggu permintaan. Dipakai lewat library ws, dengan WSS pada port 443 di produksi.'],
+    ['JWT + bcrypt','Password disimpan sebagai hash bcrypt. Setelah login, backend menerbitkan token JWT berlaku 1 jam yang diperiksa middleware di setiap permintaan terlindungi.'],
+    ['Docker','Backend dibungkus container (node:18-alpine, port 5000) supaya berjalan sama di laptop dan di server. Kredensial database diberikan lewat environment variable, bukan disimpan di image.'],
+    ['Railway','Menghubungkan repo GitHub langsung ke deployment otomatis, menghosting MySQL, dan menyimpan variabel rahasia di dashboard. Menyediakan URL publik untuk REST dan WebSocket.']
+  ];
+  var stT=$('#stackTabs'),stP=$('#stackPanel');
+  function selStack(i){
+    $$('button',stT).forEach(function(b,j){b.setAttribute('aria-pressed',i===j?'true':'false')});
+    stP.innerHTML='<strong>'+esc(STACK[i][0])+'</strong><p style="margin-top:4px">'+esc(STACK[i][1])+'</p>';
+  }
+  STACK.forEach(function(s,i){var b=document.createElement('button');b.className='tab';b.textContent=s[0];b.setAttribute('aria-pressed','false');b.addEventListener('click',function(){selStack(i)});stT.appendChild(b)});
+  selStack(3);
+
+  /* ---------- db explorer ---------- */
+  var DB=[
+    {n:'guru',p:'Akun guru. Login memakai NIP yang digabung kode kelas.',c:['nama','nip','kode_kelas','password (hash bcrypt)'],u:['POST /api/auth/login','GET/POST/PUT/DELETE /api/admin/guru']},
+    {n:'siswa',p:'Data siswa. Tiap siswa terhubung ke satu pin lewat device_id.',c:['nama','nis','kelas','device_id'],u:['GET /api/guru/siswa','POST /api/admin/siswa','POST /api/admin/device/tambah-siswa']},
+    {n:'aktivitas',p:'Satu baris untuk setiap presensi, tegur, atau panggil. Semua laporan dan grafik dihitung dari tabel ini.',c:['siswa_id','guru_id','mapel','tanggal','waktu','tipe: presensi | tegur | panggil'],u:['POST /api/guru/presensi, /tegur, /panggil','GET /api/guru/laporan, /laporan-range, /chart','GET /api/orangtua/riwayat','GET /api/admin/laporan']},
+    {n:'devices',p:'Daftar pin wearable berdasarkan alamat IP dari QR Code.',c:['ip_address','is_registered'],u:['POST /api/admin/device/register']},
+    {n:'orang_tua',p:'Akun orang tua. Login memakai NIS anak, sehingga hanya data anak itu yang tampil.',c:['nis','nama','password (hash bcrypt)'],u:['GET /api/orangtua/anak','GET /api/orangtua/riwayat','CRUD /api/admin/orangtua']},
+    {n:'admin',p:'Akun administrator. Login memakai email.',c:['email','password (hash bcrypt)'],u:['PUT /api/admin/admin/:id']},
+    {n:'login_history',p:'Jejak audit. Setiap login yang berhasil dicatat otomatis.',c:['dicatat oleh authController'],u:['POST /api/auth/login']}
+  ];
+  var dbT=$('#dbTabs'),dbP=$('#dbPanel');
+  function selDb(i){
+    $$('button',dbT).forEach(function(b,j){b.setAttribute('aria-pressed',i===j?'true':'false')});
+    var t=DB[i];
+    dbP.innerHTML='<p>'+esc(t.p)+'</p><div class="colist">'+t.c.map(function(x){return '<span class="col">'+esc(x)+'</span>'}).join('')+'</div><p class="cap" style="margin-top:12px">Dipakai oleh</p><ul class="list" style="margin-top:4px">'+t.u.map(function(x){return '<li><code>'+esc(x)+'</code></li>'}).join('')+'</ul>';
+  }
+  DB.forEach(function(t,i){var b=document.createElement('button');b.className='tab mono';b.textContent=t.n;b.setAttribute('aria-pressed','false');b.addEventListener('click',function(){selDb(i)});dbT.appendChild(b)});
+  selDb(2);
+
+  /* ---------- endpoint table ---------- */
+  var EP=[
+    ['Auth','POST','/api/auth/login','Login guru, orang tua, atau admin',245],
+    ['Auth','POST','/api/auth/update-password','Ganti password',210],
+    ['Auth','POST','/api/auth/logout','Keluar',95],
+    ['Guru','GET','/api/guru/siswa?kelas=6','Daftar siswa per kelas',130],
+    ['Guru','POST','/api/guru/tegur','Kirim teguran dan catat',175],
+    ['Guru','POST','/api/guru/panggil','Kirim panggilan dan catat',168],
+    ['Guru','POST','/api/guru/presensi','Catat presensi dan konfirmasi ke pin',172],
+    ['Guru','GET','/api/guru/laporan','Laporan harian',195],
+    ['Guru','GET','/api/guru/laporan-range','Laporan rentang tanggal',230],
+    ['Guru','GET','/api/guru/chart','Grafik per mata pelajaran',158],
+    ['Guru','GET','/api/guru/chart-general','Grafik umum per kelas',162],
+    ['Guru','GET','/api/guru/export-pdf','Ekspor laporan',310],
+    ['Guru','PUT','/api/guru/profil','Ubah profil guru',140],
+    ['Admin','GET','/api/admin/guru','Daftar guru',118],
+    ['Admin','POST','/api/admin/guru','Tambah guru',205],
+    ['Admin','PUT','/api/admin/guru/:id','Ubah guru',190],
+    ['Admin','DELETE','/api/admin/guru/:id','Hapus guru',102],
+    ['Admin','GET','/api/admin/orangtua','Daftar orang tua',122],
+    ['Admin','POST','/api/admin/orangtua','Tambah orang tua',198],
+    ['Admin','PUT','/api/admin/orangtua/:id','Ubah orang tua',182],
+    ['Admin','DELETE','/api/admin/orangtua/:id','Hapus orang tua',98],
+    ['Admin','PUT','/api/admin/admin/:id','Ubah akun admin',135],
+    ['Admin','GET','/api/admin/laporan','Laporan semua kelas',220],
+    ['Admin','POST','/api/admin/siswa','Tambah siswa',200],
+    ['Admin','POST','/api/admin/device/register','Daftarkan pin dari alamat IP',150],
+    ['Admin','POST','/api/admin/device/tambah-siswa','Pasangkan siswa dengan pin',165],
+    ['Orang Tua','GET','/api/orangtua/anak','Data anak berdasarkan NIS',128],
+    ['Orang Tua','GET','/api/orangtua/riwayat','Riwayat aktivitas anak',175]
+  ].map(function(r,i){return {no:i,role:r[0],m:r[1],p:r[2],f:r[3],ms:r[4]}});
+  var epRole='Semua',roles=['Semua','Auth','Guru','Orang Tua','Admin'];
+  var epRoleEl=$('#epRole');
+  roles.forEach(function(r){var b=document.createElement('button');b.textContent=r;b.setAttribute('aria-pressed',r==='Semua'?'true':'false');b.addEventListener('click',function(){epRole=r;$$('button',epRoleEl).forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});renderEp()});epRoleEl.appendChild(b)});
+  function renderEp(){
+    var q=$('#epSearch').value.trim().toLowerCase(),sort=$('#epSort').value;
+    var rows=EP.filter(function(e){return (epRole==='Semua'||e.role===epRole)&&(!q||(e.p+' '+e.f).toLowerCase().indexOf(q)>-1)});
+    if(sort==='fast')rows.sort(function(a,b){return a.ms-b.ms});
+    if(sort==='slow')rows.sort(function(a,b){return b.ms-a.ms});
+    $('#epBody').innerHTML=rows.map(function(e){
+      var low=e.ms<100;
+      return '<tr><td><span class="m '+e.m+'">'+e.m+'</span></td><td><code>'+esc(e.p)+'</code></td><td>'+esc(e.f)+'</td><td class="num"><div class="lat"><i style="width:'+Math.round(e.ms/310*90)+'px"></i><b>'+e.ms+'</b></div></td><td><span class="pill '+(low?'ok':'info')+'">'+(low?'Low':'Medium')+'</span></td></tr>';
+    }).join('')||'<tr><td colspan="5">Tidak ada endpoint yang cocok.</td></tr>';
+    $('#epCount').textContent='Menampilkan '+rows.length+' dari '+EP.length+' endpoint. Low: di bawah 100 ms. Medium: 100 sampai 1.000 ms.';
+  }
+  $('#epSearch').addEventListener('input',renderEp);$('#epSort').addEventListener('change',renderEp);renderEp();
+
+  /* ---------- kontrol proyek ---------- */
+  var KEY='sora-board-v1';
+  var TASKS=[
+    {id:'t1',ph:'Riset',t:'Wawancara dan observasi SLBN Cicendo',s:'2025-11-20',d:7,st:'done',est:false,out:'Daftar masalah dari guru kelas VI',note:'Wawancara 20 Nov 2025 menjadi dasar tiga masalah utama.'},
+    {id:'t2',ph:'Riset',t:'Analisis kebutuhan dan arsitektur',s:'2025-11-27',d:30,st:'done',est:true,out:'Arsitektur aplikasi, backend, database, pin',note:'Memilih REST untuk data dan WebSocket untuk notifikasi.'},
+    {id:'t3',ph:'Fondasi',t:'Desain database dan setup project',s:'2026-01-05',d:21,st:'done',est:true,out:'Skema tabel, connection pool, struktur folder',note:'Dikembangkan di MySQL lokal (XAMPP) lebih dulu.'},
+    {id:'t4',ph:'Fondasi',t:'Autentikasi JWT, bcrypt, peran',s:'2026-01-26',d:28,st:'done',est:true,out:'Login tiga peran, middleware verifyToken dan isAdmin',note:'Token berlaku 1 jam. Login berhasil dicatat di login_history.'},
+    {id:'t5',ph:'Fitur',t:'Fitur guru: presensi, tegur, panggil',s:'2026-02-23',d:35,st:'done',est:true,out:'Endpoint POST /presensi, /tegur, /panggil',note:'Perhitungan tanggal WIB dilakukan manual (UTC+7) karena server memakai UTC.'},
+    {id:'t6',ph:'Fitur',t:'WebSocket ke pin wearable',s:'2026-03-30',d:28,st:'done',est:true,out:'Registrasi pin dan pengiriman perintah real-time',note:'Pin mengirim siswaId saat terhubung. Server menyimpannya di objek pins.'},
+    {id:'t7',ph:'Fitur',t:'Laporan, grafik, ekspor PDF',s:'2026-04-27',d:28,st:'done',est:true,out:'Laporan harian dan rentang, chart, PDF',note:'Data dikelompokkan per kelas dan mata pelajaran.'},
+    {id:'t8',ph:'Fitur',t:'Fitur admin, orang tua, registrasi QR',s:'2026-05-25',d:28,st:'done',est:true,out:'CRUD akun, pairing pin lewat alamat IP, riwayat anak',note:'Orang tua hanya bisa melihat data, tidak bisa mengirim notifikasi.'},
+    {id:'t9',ph:'Rilis & Uji',t:'Docker dan deploy Railway',s:'2026-06-22',d:10,st:'done',est:true,out:'Container node:18-alpine, MySQL termigrasi, URL publik',note:'Variabel rahasia diatur lewat dashboard Railway.'},
+    {id:'t10',ph:'Rilis & Uji',t:'Pengujian Black Box, JMeter, QoS',s:'2026-07-01',d:14,st:'done',est:false,out:'68 skenario, load/stress/strength, response time, Wireshark',note:'Data uji JMeter bertanggal 4 Juli 2026.'},
+    {id:'t11',ph:'Rilis & Uji',t:'Finalisasi buku capstone',s:'2026-07-08',d:7,st:'done',est:true,out:'Buku tugas akhir bertanggal 14 Juli 2026',note:''},
+    {id:'b1',ph:'Backlog',t:'Reconnect dan antrean perintah offline',s:null,d:0,st:'plan',est:false,out:'Perintah tersimpan lalu terkirim saat pin kembali online',note:'Saat ini perintah ke pin offline hanya menampilkan status gagal terkirim.'},
+    {id:'b2',ph:'Backlog',t:'Stabilkan koneksi backend ke database',s:null,d:0,st:'plan',est:false,out:'Packet loss turun dari 16%',note:'Penyebab packet loss 16% adalah koneksi database yang tidak stabil.'},
+    {id:'b3',ph:'Backlog',t:'Caching endpoint laporan',s:null,d:0,st:'plan',est:false,out:'Lonjakan response time berkurang pada beban tinggi',note:'Maksimum satu request tercatat 284 detik pada uji 5 jam.'},
+    {id:'b4',ph:'Backlog',t:'Rate limiting dan validasi input',s:null,d:0,st:'plan',est:false,out:'Perlindungan dari permintaan berlebihan',note:''}
+  ];
+  var PHASES=['Semua','Riset','Fondasi','Fitur','Rilis & Uji','Backlog'];
+  var STL={plan:'Rencana',doing:'Berjalan',done:'Selesai'};
+  var over={};try{over=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){over={}}
+  var phase='Semua',sel='t6';
+  function stOf(t){return over[t.id]||t.st}
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(over))}catch(e){}}
+  function dUTC(s){var p=s.split('-');return Date.UTC(+p[0],+p[1]-1,+p[2])}
+  function dfmt(ms){return new Date(ms).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}
+  function range(t){if(!t.s)return 'Belum dijadwalkan';var a=dUTC(t.s),b=a+(t.d-1)*864e5;return dfmt(a)+' sampai '+dfmt(b)}
+  function detail(t){
+    var st=stOf(t);
+    return '<div class="detail">'+
+      '<div class="row"><span>Fase</span><span>'+esc(t.ph)+'</span></div>'+
+      '<div class="row"><span>Waktu</span><span>'+esc(range(t))+(t.s&&t.est?'<span class="est-tag">perkiraan</span>':'')+'</span></div>'+
+      '<div class="row"><span>Hasil</span><span>'+esc(t.out)+'</span></div>'+
+      (t.note?'<div class="row"><span>Catatan</span><span>'+esc(t.note)+'</span></div>':'')+
+      '<div class="seg" role="group" aria-label="Ubah status">'+['plan','doing','done'].map(function(k){return '<button data-id="'+t.id+'" data-st="'+k+'" aria-pressed="'+(st===k)+'">'+STL[k]+'</button>'}).join('')+'</div>'+
+    '</div>';
+  }
+  var vis=function(){return TASKS.filter(function(t){return phase==='Semua'||t.ph===phase})};
+  function renderSummary(){
+    var n=TASKS.length,c={plan:0,doing:0,done:0};TASKS.forEach(function(t){c[stOf(t)]++});
+    $('#sumRow').innerHTML='<span><b>'+Math.round(c.done/n*100)+'%</b>selesai ('+c.done+' dari '+n+' tugas)</span>'+
+      '<span><i class="dot" style="background:var(--accent)"></i>Selesai '+c.done+'</span>'+
+      '<span><i class="dot" style="background:var(--warn)"></i>Berjalan '+c.doing+'</span>'+
+      '<span><i class="dot" style="border:2px dashed var(--ink2)"></i>Rencana '+c.plan+'</span>';
+    $('#sumBar').innerHTML='<i class="d" style="width:'+(c.done/n*100)+'%"></i><i class="w" style="width:'+(c.doing/n*100)+'%"></i>';
+    $('#resetBoard').hidden=Object.keys(over).length===0;
+  }
+  function renderPhases(){
+    var el=$('#phaseTabs');el.innerHTML='';
+    PHASES.forEach(function(p){var b=document.createElement('button');b.className='tab';b.textContent=p;b.setAttribute('aria-pressed',p===phase?'true':'false');b.addEventListener('click',function(){phase=p;renderAll()});el.appendChild(b)});
+  }
+  var G0=Date.UTC(2025,10,1),G1=Date.UTC(2026,7,1),GD=(G1-G0)/864e5;
+  function gp(ms){return (ms-G0)/864e5/GD*100}
+  var MN=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  function renderGantt(){
+    var months=[[2025,10],[2025,11],[2026,0],[2026,1],[2026,2],[2026,3],[2026,4],[2026,5],[2026,6]];
+    var head='<div class="g-head"><div></div><div class="g-months">'+months.map(function(m,i){
+      var a=gp(Date.UTC(m[0],m[1],1)),b=i<months.length-1?gp(Date.UTC(months[i+1][0],months[i+1][1],1)):100;
+      return '<span style="left:'+a+'%;width:'+(b-a)+'%">'+MN[m[1]]+' '+String(m[0]).slice(2)+'</span>';
+    }).join('')+'</div></div>';
+    var lines=months.map(function(m){return '<span class="l" style="left:'+gp(Date.UTC(m[0],m[1],1))+'%"></span>'}).join('');
+    var rows=vis().filter(function(t){return t.s}).map(function(t){
+      var a=dUTC(t.s),l=gp(a),w=Math.max(gp(a+t.d*864e5)-l,1.2);
+      return '<div class="g-row"><button class="g-label" data-sel="'+t.id+'" title="'+esc(t.t)+'">'+esc(t.t)+'</button>'+
+        '<div class="g-track">'+lines+'<button class="g-bar st-'+stOf(t)+(t.est?' est':'')+(sel===t.id?' sel':'')+'" data-sel="'+t.id+'" style="left:'+l+'%;width:'+w+'%" aria-label="'+esc(t.t+', '+range(t))+'"></button></div></div>';
+    }).join('');
+    $('#gantt').innerHTML=head+(rows||'<p class="cap" style="padding:16px 0">Fase ini tidak punya jadwal bertanggal. Lihat papan tugas di bawah.</p>');
+    var t=TASKS.filter(function(x){return x.id===sel})[0];
+    $('#gdetail').innerHTML=t?'<strong>'+esc(t.t)+'</strong>'+detail(t):'';
+  }
+  function renderBoard(){
+    var cols=['plan','doing','done'],list=vis();
+    $('#board').innerHTML=cols.map(function(k){
+      var items=list.filter(function(t){return stOf(t)===k});
+      return '<div><div class="col-h"><span>'+STL[k]+'</span><span>'+items.length+'</span></div><div class="col-b">'+
+        items.map(function(t){
+          return '<article class="t-card st-'+k+(sel===t.id?' sel':'')+'"><button class="t-head" data-sel="'+t.id+'" aria-expanded="'+(sel===t.id)+'"><span class="tag">'+esc(t.ph)+'</span><strong>'+esc(t.t)+'</strong><span class="t-date">'+esc(t.s?dfmt(dUTC(t.s)):'Belum dijadwalkan')+(t.s&&t.est?' (perkiraan)':'')+'</span></button>'+(sel===t.id?detail(t):'')+'</article>';
+        }).join('')+(items.length?'':'<p class="cap" style="padding:6px 2px">Kosong</p>')+'</div></div>';
+    }).join('');
+  }
+  function renderAll(){renderSummary();renderPhases();renderGantt();renderBoard()}
+  document.addEventListener('click',function(e){
+    var s=e.target.closest('[data-sel]');
+    if(s){sel=s.dataset.sel;renderGantt();renderBoard();return}
+    var b=e.target.closest('[data-st]');
+    if(b){var id=b.dataset.id,st=b.dataset.st,t=TASKS.filter(function(x){return x.id===id})[0];if(!t)return;
+      if(st===t.st)delete over[id];else over[id]=st;save();renderAll();return}
+  });
+  $('#resetBoard').addEventListener('click',function(){over={};save();renderAll()});
+  renderAll();
+
+  /* ---------- grafik beban ---------- */
+  var US=[10,20,30,40,50,60,70,80,90,100];
+  var DS={
+    resp:{tab:'Response time',unit:'ms',cap:'Rata-rata response time per tingkat pengguna virtual. Stress: tiap tingkat 5 menit. Strength: tiap tingkat 30 menit.',ref:1000,refL:'batas 1.000 ms',
+      s:[{n:'Stress',c:'--accent',v:[396.28,416.98,476.74,537.26,758.93,809.4,885.82,1366.86,1367.91,1609.21]},{n:'Strength',c:'--warn',v:[376.4,391.46,435.85,582.17,743.94,1196.7,1904.18,2515.45,3520.47,4689.43]}]},
+    thr:{tab:'Throughput',unit:'req/s',cap:'Permintaan yang berhasil diproses per detik. Pada strength test, throughput turun setelah 50 pengguna karena antrean menumpuk.',
+      s:[{n:'Stress',c:'--accent',v:[3.55,9.9,15.7,21.01,23.62,28.04,31.8,29.27,33.27,33.51]},{n:'Strength',c:'--warn',v:[3.465,9.914,15.917,20.219,23.654,23.191,21.021,20.058,17.856,15.93]}]},
+    cpu:{tab:'CPU',unit:'%',cap:'Penggunaan CPU backend di Railway selama load test.',max:100,
+      s:[{n:'CPU',c:'--accent',v:[12,19,27,35,44,58,67,72,76,81]}]},
+    mem:{tab:'Memori',unit:'MB',cap:'Penggunaan memori backend di Railway. Kondisi idle: 145 MB.',
+      s:[{n:'Memori',c:'--accent',v:[160,178,195,210,228,245,252,258,262,268]}]}
+  };
+  var dk='resp',hov=5;
+  var ct=$('#chartTabs');
+  Object.keys(DS).forEach(function(k){var b=document.createElement('button');b.textContent=DS[k].tab;b.setAttribute('aria-pressed',k===dk?'true':'false');b.addEventListener('click',function(){dk=k;hov=5;$$('button',ct).forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});drawChart()});ct.appendChild(b)});
+  function niceMax(m){
+    var raw=m/5,p=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/p,st=(f<=1?1:f<=2?2:f<=5?5:10)*p;
+    return {step:st,max:Math.ceil(m/st)*st};
+  }
+  function drawChart(){
+    var D=DS[dk],box=$('#chart'),w=Math.max(box.clientWidth,300),h=w<520?250:310;
+    var M={l:48,r:16,t:16,b:34},pw=w-M.l-M.r,ph=h-M.t-M.b;
+    var all=[];D.s.forEach(function(s){all=all.concat(s.v)});
+    if(D.ref)all.push(D.ref*1.05);
+    var mx=D.max?{step:D.max/5,max:D.max}:niceMax(Math.max.apply(null,all));
+    var X=function(i){return M.l+i*pw/(US.length-1)},Y=function(v){return M.t+ph-v/mx.max*ph};
+    var g='';
+    var bx0=X(5),bx1=X(7);
+    g+='<rect x="'+bx0+'" y="'+M.t+'" width="'+(bx1-bx0)+'" height="'+ph+'" style="fill:var(--accent-soft)" opacity=".7"/>';
+    g+='<text class="ax" x="'+(bx0+4)+'" y="'+(M.t+12)+'" style="fill:var(--accent)">titik jenuh 60-80</text>';
+    for(var v=0;v<=mx.max+1e-9;v+=mx.step){g+='<line x1="'+M.l+'" x2="'+(w-M.r)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" style="stroke:var(--line)" stroke-width="1"/><text class="ax" x="'+(M.l-8)+'" y="'+(Y(v)+4)+'" text-anchor="end">'+fmt(v,0)+'</text>'}
+    US.forEach(function(u,i){if(w>480||i%2===1||i===0)g+='<text class="ax" x="'+X(i)+'" y="'+(h-12)+'" text-anchor="middle">'+u+'</text>'});
+    g+='<text class="ax" x="'+(w-M.r)+'" y="'+(h-1)+'" text-anchor="end">pengguna virtual</text>';
+    g+='<text class="ax" x="4" y="10">'+D.unit+'</text>';
+    if(D.ref){g+='<line x1="'+M.l+'" x2="'+(w-M.r)+'" y1="'+Y(D.ref)+'" y2="'+Y(D.ref)+'" style="stroke:var(--led-r)" stroke-width="1.5" stroke-dasharray="5 4"/><text class="ax" x="'+(w-M.r)+'" y="'+(Y(D.ref)-5)+'" text-anchor="end" style="fill:var(--led-r)">'+D.refL+'</text>'}
+    g+='<line x1="'+X(hov)+'" x2="'+X(hov)+'" y1="'+M.t+'" y2="'+(M.t+ph)+'" style="stroke:var(--ink2)" stroke-width="1" stroke-dasharray="3 3"/>';
+    D.s.forEach(function(s){
+      var pts=s.v.map(function(v,i){return X(i)+','+Y(v)}).join(' ');
+      g+='<polyline points="'+pts+'" fill="none" style="stroke:var('+s.c+')" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+      s.v.forEach(function(v,i){g+='<circle cx="'+X(i)+'" cy="'+Y(v)+'" r="'+(i===hov?5:3)+'" style="fill:'+(i===hov?'var('+s.c+')':'var(--surface)')+';stroke:var('+s.c+')" stroke-width="2"/>'});
+    });
+    box.innerHTML='<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="Grafik '+esc(D.tab)+' terhadap jumlah pengguna virtual" style="touch-action:pan-y">'+g+'<rect x="'+M.l+'" y="0" width="'+pw+'" height="'+h+'" fill="transparent" id="hit"/></svg>';
+    var hit=$('#hit');
+    function mv(ev){var r=box.getBoundingClientRect(),x=ev.clientX-r.left-M.l,i=Math.round(x/(pw/(US.length-1)));i=Math.max(0,Math.min(US.length-1,i));if(i!==hov){hov=i;drawChart()}}
+    hit.addEventListener('pointermove',mv);hit.addEventListener('pointerdown',mv);
+    $('#chartCap').textContent=D.cap;
+    $('#chartRead').innerHTML='<b>'+US[hov]+' pengguna</b>'+D.s.map(function(s){return '<span style="color:var('+s.c+')"><b>'+esc(s.n)+'</b> '+fmt(s.v[hov])+' '+D.unit+'</span>'}).join('');
+    $('#chartLegend').innerHTML=D.s.map(function(s){return '<span><i style="background:var('+s.c+')"></i>'+esc(s.n)+'</span>'}).join('');
+  }
+  drawChart();
+  if('ResizeObserver' in window){var lastW=0;new ResizeObserver(function(){var w=$('#chart').clientWidth;if(Math.abs(w-lastW)>2){lastW=w;drawChart()}}).observe($('#chart'))}
+  else window.addEventListener('resize',drawChart);
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js"></script>
+<script>
+(function(){var d=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches;
+mermaid.initialize({startOnLoad:true,theme:d?"dark":"default",securityLevel:"loose"});})();
+</script>
+</body>
+</html>
